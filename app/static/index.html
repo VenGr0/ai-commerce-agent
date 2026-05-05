@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Commerce Copy Agent</title>
+  <style>
+    :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111; background: #f6f6f6; }
+    body { margin: 0; }
+    main { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+    section { background: white; border: 1px solid #ddd; border-radius: 16px; padding: 20px; margin: 16px 0; box-shadow: 0 4px 16px rgba(0,0,0,.04); }
+    input, select, textarea, button { font: inherit; }
+    input, select, textarea { width: 100%; box-sizing: border-box; border: 1px solid #ccc; border-radius: 10px; padding: 10px 12px; margin: 6px 0 12px; }
+    button { border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; background: #111; color: white; }
+    button.secondary { background: #555; }
+    code, pre { background: #f1f1f1; border-radius: 10px; padding: 10px; white-space: pre-wrap; overflow: auto; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .small { color: #555; font-size: 14px; }
+    .product { border: 1px solid #eee; border-radius: 12px; padding: 12px; margin: 10px 0; }
+    @media (max-width: 780px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>AI Commerce Copy Agent</h1>
+  <p class="small">Minimal admin UI for testing the FastAPI backend. Production users should get a proper embedded Shopify app UI.</p>
+
+  <section class="grid">
+    <div>
+      <h2>1. Register / login</h2>
+      <label>Email</label><input id="email" value="demo@example.com" />
+      <label>Password</label><input id="password" type="password" value="change-me-123" />
+      <button onclick="register()">Register</button>
+      <button class="secondary" onclick="login()">Login</button>
+    </div>
+    <div>
+      <h2>Token</h2>
+      <pre id="tokenBox">No token</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Connect Shopify</h2>
+    <label>Shop domain</label><input id="shopDomain" placeholder="your-store.myshopify.com" />
+    <button onclick="installShopify()">Create Shopify install URL</button>
+    <p id="installUrl"></p>
+  </section>
+
+  <section class="grid">
+    <div>
+      <h2>3. Sync products</h2>
+      <button onclick="loadShops()">Load shops</button>
+      <label>Shop</label><select id="shopSelect"></select>
+      <button onclick="syncProducts()">Sync latest 50 products</button>
+    </div>
+    <div>
+      <h2>Usage</h2>
+      <button onclick="loadUsage()">Load usage</button>
+      <pre id="usageBox">-</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Products</h2>
+    <button onclick="loadProducts()">Load cached products</button>
+    <div id="products"></div>
+  </section>
+
+  <section>
+    <h2>5. Generate copy</h2>
+    <label>Selected product GID</label><input id="productGid" placeholder="gid://shopify/Product/..." />
+    <label>Tone</label>
+    <select id="tone"><option>neutral</option><option>premium</option><option>friendly</option><option>technical</option><option>minimalist</option><option>luxury</option><option>eco</option></select>
+    <label>Primary keywords, comma-separated</label><input id="keywords" placeholder="organic cotton, breathable, summer" />
+    <label><input id="publish" type="checkbox" style="width:auto" /> Publish directly to Shopify</label><br />
+    <button onclick="generateCopy()">Generate</button>
+    <label>Job ID</label><input id="jobId" />
+    <button class="secondary" onclick="loadJob()">Load job</button>
+    <pre id="jobBox">-</pre>
+  </section>
+</main>
+<script>
+const api = window.location.origin;
+let token = localStorage.getItem('agent_token') || '';
+document.getElementById('tokenBox').textContent = token ? token.slice(0, 32) + '...' : 'No token';
+
+function headers() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }; }
+async function jsonFetch(path, options={}) {
+  const res = await fetch(api + path, options);
+  const text = await res.text();
+  let body; try { body = text ? JSON.parse(text) : {}; } catch { body = text; }
+  if (!res.ok) throw new Error(JSON.stringify(body));
+  return body;
+}
+async function register() {
+  const body = { email: email.value, password: password.value };
+  const data = await jsonFetch('/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  token = data.access_token; localStorage.setItem('agent_token', token); tokenBox.textContent = token.slice(0,32) + '...';
+}
+async function login() {
+  const body = { email: email.value, password: password.value };
+  const data = await jsonFetch('/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  token = data.access_token; localStorage.setItem('agent_token', token); tokenBox.textContent = token.slice(0,32) + '...';
+}
+async function installShopify() {
+  const data = await jsonFetch('/shopify/install?shop=' + encodeURIComponent(shopDomain.value), { headers: headers() });
+  installUrl.innerHTML = `<a href="${data.install_url}">Open Shopify OAuth install URL</a>`;
+}
+async function loadShops() {
+  const shops = await jsonFetch('/shopify/shops', { headers: headers() });
+  shopSelect.innerHTML = shops.map(s => `<option value="${s.id}">${s.shop_domain}</option>`).join('');
+}
+async function syncProducts() {
+  const data = await jsonFetch('/products/sync/' + shopSelect.value, { method:'POST', headers: headers() });
+  renderProducts(data);
+}
+async function loadProducts() {
+  const data = await jsonFetch('/products/' + shopSelect.value, { headers: headers() });
+  renderProducts(data);
+}
+function renderProducts(data) {
+  products.innerHTML = data.map(p => `<div class="product"><strong>${p.title}</strong><br><span class="small">${p.shopify_gid}</span><br><button onclick="productGid.value='${p.shopify_gid}'">Select</button></div>`).join('');
+}
+async function generateCopy() {
+  const payload = {
+    shop_id: shopSelect.value,
+    shopify_gid: productGid.value,
+    publish: publish.checked,
+    tone: tone.value,
+    primary_keywords: keywords.value.split(',').map(s => s.trim()).filter(Boolean)
+  };
+  const job = await jsonFetch('/generation/jobs', { method:'POST', headers: headers(), body: JSON.stringify(payload) });
+  jobId.value = job.id; jobBox.textContent = JSON.stringify(job, null, 2);
+}
+async function loadJob() {
+  const job = await jsonFetch('/generation/jobs/' + jobId.value, { headers: headers() });
+  jobBox.textContent = JSON.stringify(job, null, 2);
+}
+async function loadUsage() {
+  const usage = await jsonFetch('/generation/usage', { headers: headers() });
+  usageBox.textContent = JSON.stringify(usage, null, 2);
+}
+</script>
+</body>
+</html>

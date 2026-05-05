@@ -1,0 +1,6 @@
+.venv/
+.env
+commerce_agent.db
+__pycache__/
+.pytest_cache/
+*.pyc
