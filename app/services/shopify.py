@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
-from app.models import OAuthState, ProductSnapshot, Shop
+from app.models import OAuthState, ProductSnapshot, Shop, utcnow
 from app.security import decrypt_secret, encrypt_secret
 
 SHOP_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$")
@@ -196,6 +196,7 @@ def normalize_product_node(shop_id: str, product: dict[str, Any]) -> ProductSnap
         seo_description=seo.get("description"),
         image_url=extract_image_url(product),
         raw_json=json.dumps(product, ensure_ascii=False),
+        synced_at=utcnow(),
     )
 
 

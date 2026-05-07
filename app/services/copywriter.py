@@ -54,9 +54,32 @@ def validate_result(data: dict[str, Any]) -> GenerateCopyResult:
     return result
 
 
+
+def clean_repeated_title(title: str, vendor: str | None) -> str:
+    base = (title or "Product").strip()
+    vendor = (vendor or "").strip()
+
+    if vendor:
+        suffix = f" | {vendor}"
+        while base.lower().endswith(suffix.lower()):
+            base = base[: -len(suffix)].strip()
+
+    parts = [part.strip() for part in base.split("|") if part.strip()]
+    deduped = []
+    seen = set()
+    for part in parts:
+        key = part.lower()
+        if key not in seen:
+            deduped.append(part)
+            seen.add(key)
+
+    return " | ".join(deduped) or "Product"
+
+
 def fallback_copy(product: dict[str, Any], request: GenerateCopyRequest) -> GenerateCopyResult:
-    title = product.get("title") or "Product"
+    raw_title = product.get("title") or "Product"
     vendor = product.get("vendor") or "our brand"
+    title = clean_repeated_title(raw_title, vendor)
     product_type = product.get("productType") or "product"
     keywords = ", ".join(request.primary_keywords[:4]) or product_type
     safe_title = f"{title} | {vendor}"[:120]

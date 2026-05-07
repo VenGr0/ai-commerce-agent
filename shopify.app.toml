@@ -1,0 +1,16 @@
+client_id = "6279b46edb62cc47392a3a032f503c47"
+name = "test"
+application_url = "https://cure-humming-exclusive.ngrok-free.dev/static/index.html"
+embedded = false
+
+[access_scopes]
+scopes = "read_products,write_products"
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [
+  "https://cure-humming-exclusive.ngrok-free.dev/shopify/callback"
+]
+
+[webhooks]
+api_version = "2026-04"

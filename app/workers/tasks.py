@@ -2,7 +2,7 @@ import json
 import traceback
 
 from app.db import SessionLocal
-from app.models import GenerationJob, ProductSnapshot, Shop
+from app.models import GenerationJob, ProductSnapshot, Shop, utcnow
 from app.schemas import GenerateCopyRequest
 from app.services.copywriter import generate_product_copy
 from app.services.shopify import get_product, normalize_product_node, update_product_copy
@@ -59,9 +59,9 @@ def generate_copy_task(job_id: str) -> str:
                     "seo_description",
                     "image_url",
                     "raw_json",
-                    "synced_at",
                 ]:
                     setattr(snapshot, attr, getattr(incoming, attr))
+                snapshot.synced_at = utcnow()
             else:
                 db.add(incoming)
 
@@ -73,6 +73,7 @@ def generate_copy_task(job_id: str) -> str:
         db.commit()
         return "succeeded"
     except Exception as exc:  # Keep failed jobs inspectable for operators.
+        db.rollback()
         job = db.get(GenerationJob, job_id)
         if job:
             job.status = "failed"
